@@ -66,13 +66,13 @@ class AppState: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
-    func triggerPauseMode(displayText: String? = nil) {
+    func triggerPauseMode(displayText: String? = nil, isLocked: Bool? = nil, customDuration: Int? = nil) {
         if isPauseMode {
             // If already in pause mode, exit it early (not completed)
             endPauseMode(completed: false)
         } else {
             // Enter pause mode
-            startPauseMode(displayText: displayText)
+            startPauseMode(displayText: displayText, isLocked: isLocked, customDuration: customDuration)
         }
     }
 
@@ -99,7 +99,7 @@ class AppState: NSObject, ObservableObject, AVAudioPlayerDelegate {
         print("Snooze scheduled for \(snoozeDuration) minutes from now at \(snoozeDate.formatted(date: .omitted, time: .standard)): '\(snoozeLabel)'")
     }
 
-    func startPauseMode(displayText: String? = nil) {
+    func startPauseMode(displayText: String? = nil, isLocked: Bool? = nil, customDuration: Int? = nil) {
         isPauseMode = true
 
         // Pause activation timers during the session
@@ -108,8 +108,12 @@ class AppState: NSObject, ObservableObject, AVAudioPlayerDelegate {
         // Set the display text (use provided text, or default from settings)
         currentDisplayText = displayText ?? Settings.shared.sessionDisplayText
 
-        // Use settings for duration with variance
-        currentSessionDuration = Settings.shared.getActualPauseDuration()
+        // Use custom duration if provided, otherwise use global settings with variance
+        if let duration = customDuration {
+            currentSessionDuration = duration
+        } else {
+            currentSessionDuration = Settings.shared.getActualPauseDuration()
+        }
         timeRemaining = currentSessionDuration
 
         // Ensure a window exists and go fullscreen
@@ -123,8 +127,9 @@ class AppState: NSObject, ObservableObject, AVAudioPlayerDelegate {
             playRandomAmbientSound()
         }
 
-        // Enable input locking if enabled
-        if Settings.shared.lockSessionEnabled {
+        // Enable input locking: use per-activation override if provided, otherwise global setting
+        let shouldLock = isLocked ?? Settings.shared.lockSessionEnabled
+        if shouldLock {
             InputLockManager.shared.startBlocking()
         }
 

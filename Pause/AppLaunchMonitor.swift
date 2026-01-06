@@ -49,7 +49,7 @@ class AppLaunchMonitor {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 // Use custom message if provided, otherwise use default
                 let message = monitoredApp.customMessage ?? "Focus on \(appName)"
-                AppState.shared.triggerPauseMode(displayText: message)
+                AppState.shared.triggerPauseMode(displayText: message, isLocked: monitoredApp.isLocked, customDuration: monitoredApp.customDuration)
             }
         }
     }

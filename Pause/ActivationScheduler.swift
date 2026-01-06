@@ -151,8 +151,8 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode")
-                AppState.shared.triggerPauseMode()
+                print("Triggering pause mode (repeated)")
+                AppState.shared.triggerPauseMode(displayText: Settings.shared.repeatedMessage, isLocked: Settings.shared.repeatedIsLocked, customDuration: Settings.shared.repeatedCustomDuration)
             }
 
             // Update the next fire date for the next interval
@@ -182,8 +182,8 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode")
-                AppState.shared.triggerPauseMode()
+                print("Triggering pause mode (repeated)")
+                AppState.shared.triggerPauseMode(displayText: Settings.shared.repeatedMessage, isLocked: Settings.shared.repeatedIsLocked, customDuration: Settings.shared.repeatedCustomDuration)
             }
 
             // After first fire, use normal interval
@@ -228,8 +228,8 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode")
-                AppState.shared.triggerPauseMode()
+                print("Triggering pause mode (random)")
+                AppState.shared.triggerPauseMode(displayText: Settings.shared.randomMessage, isLocked: Settings.shared.randomIsLocked, customDuration: Settings.shared.randomCustomDuration)
             }
 
             // Schedule the next random timer
@@ -253,8 +253,8 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode")
-                AppState.shared.triggerPauseMode()
+                print("Triggering pause mode (random)")
+                AppState.shared.triggerPauseMode(displayText: Settings.shared.randomMessage, isLocked: Settings.shared.randomIsLocked, customDuration: Settings.shared.randomCustomDuration)
             }
 
             // Schedule next random timer normally
@@ -359,8 +359,8 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode with text: \(scheduledTime.name)")
-                AppState.shared.triggerPauseMode(displayText: scheduledTime.name)
+                print("Triggering pause mode with text: \(scheduledTime.name), locked: \(String(describing: scheduledTime.isLocked)), duration: \(String(describing: scheduledTime.customDuration))")
+                AppState.shared.triggerPauseMode(displayText: scheduledTime.name, isLocked: scheduledTime.isLocked, customDuration: scheduledTime.customDuration)
             }
 
             if scheduledTime.isRecurring {

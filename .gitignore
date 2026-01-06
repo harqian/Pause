@@ -36,3 +36,5 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 
 .env
+
+Pause.app

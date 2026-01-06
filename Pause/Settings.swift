@@ -17,14 +17,18 @@ struct MonitoredApp: Codable, Identifiable, Equatable {
     let iconPath: String?
     var activationDelay: TimeInterval  // Seconds to wait after app launch before triggering
     var customMessage: String?  // Custom message to display, or nil for default
+    var isLocked: Bool?  // nil = use global setting
+    var customDuration: Int?  // nil = use global duration
 
-    init(bundleIdentifier: String, name: String, iconPath: String? = nil, activationDelay: TimeInterval = 5.0, customMessage: String? = nil) {
+    init(bundleIdentifier: String, name: String, iconPath: String? = nil, activationDelay: TimeInterval = 5.0, customMessage: String? = nil, isLocked: Bool? = nil, customDuration: Int? = nil) {
         self.id = UUID()
         self.bundleIdentifier = bundleIdentifier
         self.name = name
         self.iconPath = iconPath
         self.activationDelay = activationDelay
         self.customMessage = customMessage
+        self.isLocked = isLocked
+        self.customDuration = customDuration
     }
 }
 
@@ -33,12 +37,16 @@ struct ScheduledTime: Codable, Identifiable, Equatable {
     var date: Date
     var name: String
     var isRecurring: Bool  // false for one-time snooze activations, true for daily recurring
+    var isLocked: Bool?  // nil = use global setting, true/false = override
+    var customDuration: Int?  // nil = use global duration, otherwise override in seconds
 
-    init(id: UUID = UUID(), date: Date, name: String = "", isRecurring: Bool = true) {
+    init(id: UUID = UUID(), date: Date, name: String = "", isRecurring: Bool = true, isLocked: Bool? = nil, customDuration: Int? = nil) {
         self.id = id
         self.date = date
         self.name = name.isEmpty ? "Just Breathe" : name
         self.isRecurring = isRecurring
+        self.isLocked = isLocked
+        self.customDuration = customDuration
     }
 }
 
@@ -122,9 +130,33 @@ class Settings: ObservableObject {
         }
     }
 
-    @Published var doomScrollMessage: String {
+    @Published var doomScrollMessage: String? {
         didSet {
-            UserDefaults.standard.set(doomScrollMessage, forKey: "doomScrollMessage")
+            if let value = doomScrollMessage {
+                UserDefaults.standard.set(value, forKey: "doomScrollMessage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "doomScrollMessage")
+            }
+        }
+    }
+
+    @Published var doomScrollIsLocked: Bool? {
+        didSet {
+            if let value = doomScrollIsLocked {
+                UserDefaults.standard.set(value, forKey: "doomScrollIsLocked")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "doomScrollIsLocked")
+            }
+        }
+    }
+
+    @Published var doomScrollCustomDuration: Int? {
+        didSet {
+            if let value = doomScrollCustomDuration {
+                UserDefaults.standard.set(value, forKey: "doomScrollCustomDuration")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "doomScrollCustomDuration")
+            }
         }
     }
 
@@ -248,6 +280,36 @@ class Settings: ObservableObject {
         }
     }
 
+    @Published var repeatedIsLocked: Bool? {
+        didSet {
+            if let value = repeatedIsLocked {
+                UserDefaults.standard.set(value, forKey: "repeatedIsLocked")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "repeatedIsLocked")
+            }
+        }
+    }
+
+    @Published var repeatedCustomDuration: Int? {
+        didSet {
+            if let value = repeatedCustomDuration {
+                UserDefaults.standard.set(value, forKey: "repeatedCustomDuration")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "repeatedCustomDuration")
+            }
+        }
+    }
+
+    @Published var repeatedMessage: String? {
+        didSet {
+            if let value = repeatedMessage {
+                UserDefaults.standard.set(value, forKey: "repeatedMessage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "repeatedMessage")
+            }
+        }
+    }
+
     @Published var randomEnabled: Bool {
         didSet {
             UserDefaults.standard.set(randomEnabled, forKey: "randomEnabled")
@@ -266,6 +328,36 @@ class Settings: ObservableObject {
         didSet {
             UserDefaults.standard.set(randomMaxInterval, forKey: "randomMaxInterval")
             ActivationScheduler.shared.updateRandomTimer()
+        }
+    }
+
+    @Published var randomIsLocked: Bool? {
+        didSet {
+            if let value = randomIsLocked {
+                UserDefaults.standard.set(value, forKey: "randomIsLocked")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "randomIsLocked")
+            }
+        }
+    }
+
+    @Published var randomCustomDuration: Int? {
+        didSet {
+            if let value = randomCustomDuration {
+                UserDefaults.standard.set(value, forKey: "randomCustomDuration")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "randomCustomDuration")
+            }
+        }
+    }
+
+    @Published var randomMessage: String? {
+        didSet {
+            if let value = randomMessage {
+                UserDefaults.standard.set(value, forKey: "randomMessage")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "randomMessage")
+            }
         }
     }
 
@@ -427,7 +519,9 @@ class Settings: ObservableObject {
         self.doomScrollDirectionalityThreshold = UserDefaults.standard.object(forKey: "doomScrollDirectionalityThreshold") as? Double ?? 0.85 // 85% forward
         self.doomScrollPauseThreshold = UserDefaults.standard.object(forKey: "doomScrollPauseThreshold") as? Double ?? 1.5 // 1.5 seconds median gap
         self.doomScrollWindowDuration = UserDefaults.standard.object(forKey: "doomScrollWindowDuration") as? Int ?? 3 // 3 minutes rolling window
-        self.doomScrollMessage = UserDefaults.standard.object(forKey: "doomScrollMessage") as? String ?? "Take a Break from Scrolling"
+        self.doomScrollMessage = UserDefaults.standard.object(forKey: "doomScrollMessage") as? String
+        self.doomScrollIsLocked = UserDefaults.standard.object(forKey: "doomScrollIsLocked") as? Bool
+        self.doomScrollCustomDuration = UserDefaults.standard.object(forKey: "doomScrollCustomDuration") as? Int
 
         self.pauseDuration = UserDefaults.standard.object(forKey: "pauseDuration") as? Int ?? 60
         self.pauseVariance = UserDefaults.standard.object(forKey: "pauseVariance") as? Int ?? 0
@@ -453,10 +547,16 @@ class Settings: ObservableObject {
         // Load activation settings
         self.repeatedEnabled = UserDefaults.standard.object(forKey: "repeatedEnabled") as? Bool ?? false
         self.repeatedInterval = UserDefaults.standard.object(forKey: "repeatedInterval") as? Int ?? 60 // Default 60 minutes
+        self.repeatedIsLocked = UserDefaults.standard.object(forKey: "repeatedIsLocked") as? Bool
+        self.repeatedCustomDuration = UserDefaults.standard.object(forKey: "repeatedCustomDuration") as? Int
+        self.repeatedMessage = UserDefaults.standard.object(forKey: "repeatedMessage") as? String
 
         self.randomEnabled = UserDefaults.standard.object(forKey: "randomEnabled") as? Bool ?? false
         self.randomMinInterval = UserDefaults.standard.object(forKey: "randomMinInterval") as? Int ?? 30 // Default 30 minutes
         self.randomMaxInterval = UserDefaults.standard.object(forKey: "randomMaxInterval") as? Int ?? 120 // Default 120 minutes
+        self.randomIsLocked = UserDefaults.standard.object(forKey: "randomIsLocked") as? Bool
+        self.randomCustomDuration = UserDefaults.standard.object(forKey: "randomCustomDuration") as? Int
+        self.randomMessage = UserDefaults.standard.object(forKey: "randomMessage") as? String
 
         self.scheduledEnabled = UserDefaults.standard.object(forKey: "scheduledEnabled") as? Bool ?? false
         if let data = UserDefaults.standard.data(forKey: "scheduledTimes"),

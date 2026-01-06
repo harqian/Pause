@@ -235,10 +235,9 @@ class DoomScrollDetector: ObservableObject {
         let pauseMet = medianPause <= settings.doomScrollPauseThreshold
 
         if velocityMet && directionalityMet && pauseMet {
-            // Doom scrolling detected! Trigger pause session with custom message
-            let customMessage = settings.doomScrollMessage
+            // Doom scrolling detected! Trigger pause session
             DispatchQueue.main.async {
-                AppState.shared.startPauseMode(displayText: customMessage)
+                AppState.shared.startPauseMode(displayText: self.settings.doomScrollMessage, isLocked: self.settings.doomScrollIsLocked, customDuration: self.settings.doomScrollCustomDuration)
             }
 
             // Reinitialize with balanced history to avoid immediate re-triggering
@@ -252,7 +251,7 @@ class DoomScrollDetector: ObservableObject {
                 self.eventCount = 0
             }
 
-            print("🚨 Doom scrolling detected! Velocity: \(String(format: "%.1f", velocity))/min, Directionality: \(String(format: "%.2f", directionality)), Median pause: \(String(format: "%.2f", medianPause))s - Starting session with message: '\(customMessage)'")
+            print("🚨 Doom scrolling detected! Velocity: \(String(format: "%.1f", velocity))/min, Directionality: \(String(format: "%.2f", directionality)), Median pause: \(String(format: "%.2f", medianPause))s")
         }
     }
 
