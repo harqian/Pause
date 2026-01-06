@@ -54,9 +54,12 @@ struct ActivationSettingsTab: View {
                 get: { SliderHelpers.indexForActivation(settings.repeatedInterval) },
                 set: { settings.repeatedInterval = SliderHelpers.activationSteps()[Int($0)] }
               ), in: 0...Double(SliderHelpers.activationSteps().count - 1), step: 1)
-            Text(SliderHelpers.formatActivation(settings.repeatedInterval))
-              .frame(width: 70, alignment: .trailing)
-              .monospacedDigit()
+            EditableTimeField(
+              seconds: $settings.repeatedInterval,
+              formatter: SliderHelpers.formatActivation,
+              parser: SliderHelpers.parseActivationInterval,
+              width: 70
+            )
           }
         }
       } header: {

@@ -22,9 +22,12 @@ struct SessionSettingsTab: View {
                         get: { SliderHelpers.indexForDuration(settings.pauseDuration) },
                         set: { settings.pauseDuration = SliderHelpers.durationSteps()[Int($0)] }
                     ), in: 0...Double(SliderHelpers.durationSteps().count - 1), step: 1)
-                    Text(SliderHelpers.formatDuration(settings.pauseDuration))
-                        .frame(width: 50, alignment: .trailing)
-                        .monospacedDigit()
+                    EditableTimeField(
+                        seconds: $settings.pauseDuration,
+                        formatter: SliderHelpers.formatDuration,
+                        parser: SliderHelpers.parseTimeString,
+                        width: 60
+                    )
                 }
 
                 HStack {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct SliderHelpers {
     // Duration steps for session length (in seconds)
@@ -155,5 +156,99 @@ struct SliderHelpers {
         } else {
             return String(format: "%ds", secs)
         }
+    }
+
+    // Parse time string like "30", "30s", "2m", "1h", "1h 30m" into seconds
+    static func parseTimeString(_ input: String) -> Int? {
+        let trimmed = input.trimmingCharacters(in: .whitespaces).lowercased()
+        if trimmed.isEmpty { return nil }
+
+        // Try plain number first (interpret as seconds)
+        if let seconds = Int(trimmed) {
+            return max(1, seconds)
+        }
+
+        var totalSeconds = 0
+        let pattern = #"(\d+)\s*(h|m|s)?"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let matches = regex.matches(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed))
+
+        if matches.isEmpty { return nil }
+
+        for match in matches {
+            guard let numRange = Range(match.range(at: 1), in: trimmed),
+                  let num = Int(trimmed[numRange]) else { continue }
+
+            var unit = "s"
+            if let unitRange = Range(match.range(at: 2), in: trimmed) {
+                unit = String(trimmed[unitRange])
+            }
+
+            switch unit {
+            case "h": totalSeconds += num * 3600
+            case "m": totalSeconds += num * 60
+            default: totalSeconds += num
+            }
+        }
+
+        return totalSeconds > 0 ? totalSeconds : nil
+    }
+
+    // Parse time string into minutes (for activation intervals)
+    // Returns minutes, with special case: "30s" returns 0 (which means 30s in the activation system)
+    static func parseActivationInterval(_ input: String) -> Int? {
+        let trimmed = input.trimmingCharacters(in: .whitespaces).lowercased()
+        if trimmed.isEmpty { return nil }
+
+        // Special case for 30s (stored as 0)
+        if trimmed == "30s" || trimmed == "30 s" { return 0 }
+
+        // Try plain number (interpret as minutes)
+        if let mins = Int(trimmed) { return max(1, mins) }
+
+        // Parse with units
+        guard let seconds = parseTimeString(input) else { return nil }
+        let minutes = seconds / 60
+        return minutes > 0 ? minutes : 1
+    }
+}
+
+// Editable time field that shows formatted time and allows manual input
+struct EditableTimeField: View {
+    @Binding var seconds: Int
+    let formatter: (Int) -> String
+    let parser: (String) -> Int?
+    var width: CGFloat = 60
+
+    @State private var text: String = ""
+    @State private var isEditing = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("", text: $text, onCommit: commit)
+            .textFieldStyle(.plain)
+            .frame(width: width, alignment: .trailing)
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .focused($isFocused)
+            .onAppear { text = formatter(seconds) }
+            .onChange(of: seconds) { newValue in
+                if !isFocused { text = formatter(newValue) }
+            }
+            .onChange(of: isFocused) { focused in
+                if focused {
+                    isEditing = true
+                } else if isEditing {
+                    commit()
+                    isEditing = false
+                }
+            }
+    }
+
+    private func commit() {
+        if let parsed = parser(text) {
+            seconds = parsed
+        }
+        text = formatter(seconds)
     }
 }
