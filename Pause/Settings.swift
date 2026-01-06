@@ -36,17 +36,36 @@ struct ScheduledTime: Codable, Identifiable, Equatable {
     var id: UUID
     var date: Date
     var name: String
-    var isRecurring: Bool  // false for one-time snooze activations, true for daily recurring
+    var isRecurring: Bool  // false for one-time snooze activations (absolute time)
     var isLocked: Bool?  // nil = use global setting, true/false = override
     var customDuration: Int?  // nil = use global duration, otherwise override in seconds
+    var repeatDays: Set<Int>  // 1=Sunday...7=Saturday. Empty = one-shot (disables after firing)
+    var isEnabled: Bool  // Whether this scheduled time is active
 
-    init(id: UUID = UUID(), date: Date, name: String = "", isRecurring: Bool = true, isLocked: Bool? = nil, customDuration: Int? = nil) {
+    init(id: UUID = UUID(), date: Date, name: String = "", isRecurring: Bool = true, isLocked: Bool? = nil, customDuration: Int? = nil, repeatDays: Set<Int> = [], isEnabled: Bool = true) {
         self.id = id
         self.date = date
         self.name = name.isEmpty ? "Just Breathe" : name
         self.isRecurring = isRecurring
         self.isLocked = isLocked
         self.customDuration = customDuration
+        // Default: one-shot (empty). User must select days for repeating.
+        self.repeatDays = repeatDays
+        self.isEnabled = isEnabled
+    }
+
+    // Custom decoding for backwards compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        date = try container.decode(Date.self, forKey: .date)
+        name = try container.decode(String.self, forKey: .name)
+        isRecurring = try container.decode(Bool.self, forKey: .isRecurring)
+        isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked)
+        customDuration = try container.decodeIfPresent(Int.self, forKey: .customDuration)
+        // Migration: old data won't have repeatDays, default to all days if recurring
+        repeatDays = try container.decodeIfPresent(Set<Int>.self, forKey: .repeatDays) ?? (isRecurring ? Set(1...7) : [])
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
     }
 }
 
@@ -55,18 +74,56 @@ struct NoGoTime: Codable, Identifiable, Equatable {
     var startTime: Date
     var endTime: Date
     var name: String
-    var isRecurring: Bool  // true for daily recurring no-go times, false for day-specific
-    var dayOfWeek: Int?  // 1=Sunday, 2=Monday, etc. nil for daily recurring times
-    var creationDate: Date  // Track when this was created (for cleanup)
+    var repeatDays: Set<Int>  // 1=Sunday...7=Saturday. Empty = one-shot
+    var isEnabled: Bool
 
-    init(id: UUID = UUID(), startTime: Date, endTime: Date, name: String = "", isRecurring: Bool = true, dayOfWeek: Int? = nil) {
+    init(id: UUID = UUID(), startTime: Date, endTime: Date, name: String = "", repeatDays: Set<Int> = [], isEnabled: Bool = true) {
         self.id = id
         self.startTime = startTime
         self.endTime = endTime
         self.name = name.isEmpty ? "No-Go Period" : name
-        self.isRecurring = isRecurring
-        self.dayOfWeek = dayOfWeek
-        self.creationDate = Date()
+        self.repeatDays = repeatDays
+        self.isEnabled = isEnabled
+    }
+
+    // Custom decoding for backwards compatibility
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        endTime = try container.decode(Date.self, forKey: .endTime)
+        name = try container.decode(String.self, forKey: .name)
+
+        // Migration: convert old isRecurring + dayOfWeek to repeatDays
+        if let repeatDays = try container.decodeIfPresent(Set<Int>.self, forKey: .repeatDays) {
+            self.repeatDays = repeatDays
+        } else {
+            let isRecurring = try container.decodeIfPresent(Bool.self, forKey: .isRecurring) ?? true
+            let dayOfWeek = try container.decodeIfPresent(Int.self, forKey: .dayOfWeek)
+            if isRecurring {
+                self.repeatDays = Set(1...7)  // Daily = all days
+            } else if let day = dayOfWeek {
+                self.repeatDays = [day]  // Single day
+            } else {
+                self.repeatDays = []
+            }
+        }
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(endTime, forKey: .endTime)
+        try container.encode(name, forKey: .name)
+        try container.encode(repeatDays, forKey: .repeatDays)
+        try container.encode(isEnabled, forKey: .isEnabled)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, startTime, endTime, name, repeatDays, isEnabled
+        case isRecurring, dayOfWeek  // For migration (decode only)
     }
 }
 
@@ -821,10 +878,12 @@ class Settings: ObservableObject {
         let currentWeekday = calendar.component(.weekday, from: now)
 
         for noGoTime in noGoTimes {
-            // If dayOfWeek is set, check if it matches current day
-            if let dayOfWeek = noGoTime.dayOfWeek {
-                guard dayOfWeek == currentWeekday else { continue }
-            }
+            // Skip disabled no-go times
+            guard noGoTime.isEnabled else { continue }
+
+            // Check if today is in the repeat days (empty = applies to all days for one-shot)
+            let appliestoday = noGoTime.repeatDays.isEmpty || noGoTime.repeatDays.contains(currentWeekday)
+            guard appliestoday else { continue }
 
             // Extract hour and minute from the stored start/end times
             let startComponents = calendar.dateComponents([.hour, .minute], from: noGoTime.startTime)

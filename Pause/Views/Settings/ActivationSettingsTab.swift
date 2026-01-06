@@ -153,12 +153,32 @@ struct ActivationSettingsTab: View {
 
         ForEach($settings.scheduledTimes) { $scheduledTime in
           HStack(alignment: .center, spacing: 8) {
-            DatePicker("", selection: $scheduledTime.date, displayedComponents: .hourAndMinute)
-              .labelsHidden()
+            // Enabled toggle (only for recurring, not snoozes)
+            if scheduledTime.isRecurring {
+              Toggle("", isOn: $scheduledTime.isEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            }
 
-            Text(scheduledTime.name)
-              .foregroundColor(.secondary)
-              .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+              HStack(spacing: 4) {
+                DatePicker("", selection: $scheduledTime.date, displayedComponents: .hourAndMinute)
+                  .labelsHidden()
+                  .disabled(!scheduledTime.isEnabled)
+
+                Text(scheduledTime.name)
+                  .foregroundColor(.secondary)
+                  .lineLimit(1)
+              }
+
+              // Show repeat days for recurring scheduled times
+              if scheduledTime.isRecurring {
+                Text(formatRepeatDays(scheduledTime.repeatDays))
+                  .font(.caption2)
+                  .foregroundColor(.secondary)
+              }
+            }
 
             Spacer()
 
@@ -192,6 +212,7 @@ struct ActivationSettingsTab: View {
             }
             .buttonStyle(.plain)
           }
+          .opacity(scheduledTime.isEnabled ? 1.0 : 0.6)
         }
         .onDelete { indices in
           settings.deleteScheduledTime(at: indices)
@@ -233,7 +254,7 @@ struct ActivationSettingsTab: View {
         Text("Scheduled Activation")
       } footer: {
         if settings.scheduledEnabled {
-          Text("Pause will trigger at the specified times each day")
+          Text("Pause will trigger at the specified times on selected days")
             .font(.caption)
         } else {
           Text("Scheduled activation is disabled. Times below will not trigger.")
@@ -589,6 +610,10 @@ struct ScheduledTimeCustomizeView: View {
   @Binding var scheduledTime: ScheduledTime
   @ObservedObject var settings = Settings.shared
 
+  var repeatDaysLabel: String {
+    formatRepeatDays(scheduledTime.repeatDays)
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Customize Scheduled Time")
@@ -602,6 +627,19 @@ struct ScheduledTimeCustomizeView: View {
       }
 
       Divider()
+
+      // Repeat days (only for recurring scheduled times, not snoozes)
+      if scheduledTime.isRecurring {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Repeat")
+          DayPicker(selectedDays: $scheduledTime.repeatDays)
+          Text(repeatDaysLabel)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+
+        Divider()
+      }
 
       // Lock toggle
       VStack(alignment: .leading, spacing: 4) {
@@ -1006,3 +1044,4 @@ struct AppPickerView: View {
     .frame(width: 400, height: 200)
   }
 }
+

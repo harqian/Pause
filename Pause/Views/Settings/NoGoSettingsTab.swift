@@ -10,6 +10,7 @@ import SwiftUI
 struct NoGoSettingsTab: View {
     @ObservedObject var settings = Settings.shared
     @ObservedObject var detector = InputDetectionManager.shared
+    @State private var customizingNoGoTimeId: UUID?
 
     var body: some View {
         Form {
@@ -32,16 +33,15 @@ struct NoGoSettingsTab: View {
                     }
                 }
 
-                // System status
                 if settings.detectionEnabled {
                     HStack {
                         Text("Input Monitoring Permission")
                             .frame(width: 180, alignment: .leading)
                         if detector.hasInputMonitoringPermission {
-                            Text("✅ Granted")
+                            Text("Granted")
                                 .foregroundColor(.green)
                         } else {
-                            Text("❌ Not Granted")
+                            Text("Not Granted")
                                 .foregroundColor(.red)
                         }
 
@@ -55,59 +55,90 @@ struct NoGoSettingsTab: View {
                             }
                         }
                     }
-
                 }
             } header: {
                 Text("Don't Interrupt")
             } footer: {
                 if settings.detectionEnabled {
-                    Text("When you type or click, scheduled activations closer than \(SliderHelpers.formatBuffer(settings.inputDelayBuffer)) will be delayed. This prevents interruptions while actively working.")
+                    Text("Keyboard/mouse input will delay upcoming activations by \(SliderHelpers.formatBuffer(settings.inputDelayBuffer)).")
                         .font(.caption)
                 } else {
-                    Text("When enabled, keyboard or mouse input will delay upcoming activations to prevent interruptions while you're working.")
+                    Text("Enable to delay activations while you're actively working.")
                         .font(.caption)
                 }
             }
 
-            // SECTION 2: No-Go Times
+            // SECTION 2: No-Go Times (unified)
             Section {
-                Toggle("No-Go Times", isOn: Binding(
-                    get: { settings.noGoEnabled },
-                    set: { newValue in
-                        if !newValue {
-                            // Clear all no-go times when disabling
-                            settings.noGoTimes.removeAll()
-                        }
-                        settings.noGoEnabled = newValue
-                    }
-                ))
-                .toggleStyle(.switch)
-            } header: {
-                Text("No-Go Times")
-            } footer: {
-                Text("Prevent activations during specified time periods. Turning this off will remove all configured times.")
-                    .font(.caption)
-            }
+                Toggle("No-Go Times", isOn: $settings.noGoEnabled)
+                    .toggleStyle(.switch)
 
-            // Recurring no-go times (daily)
-            Section {
-                ForEach($settings.noGoTimes.filter { $0.wrappedValue.isRecurring }) { $noGoTime in
-                    NoGoTimeRow(noGoTime: $noGoTime, onDelete: {
-                        settings.deleteNoGoTime(id: noGoTime.id)
-                    })
+                ForEach($settings.noGoTimes) { $noGoTime in
+                    HStack(alignment: .center, spacing: 8) {
+                        Toggle("", isOn: $noGoTime.isEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                DatePicker("", selection: $noGoTime.startTime, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                                    .disabled(!noGoTime.isEnabled)
+
+                                Text("-")
+                                    .foregroundColor(.secondary)
+
+                                DatePicker("", selection: $noGoTime.endTime, displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                                    .disabled(!noGoTime.isEnabled)
+
+                                Text(noGoTime.name)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            Text(formatRepeatDays(noGoTime.repeatDays))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        Button(action: {
+                            customizingNoGoTimeId = noGoTime.id
+                        }) {
+                            Image(systemName: "gearshape")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .popover(
+                            isPresented: Binding(
+                                get: { customizingNoGoTimeId == noGoTime.id },
+                                set: { if !$0 { customizingNoGoTimeId = nil } }
+                            )
+                        ) {
+                            NoGoTimeCustomizeView(noGoTime: $noGoTime)
+                        }
+
+                        Button(action: {
+                            settings.deleteNoGoTime(id: noGoTime.id)
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .opacity(noGoTime.isEnabled ? 1.0 : 0.6)
                 }
 
                 HStack {
                     Button("Add No-Go Time") {
-                        let now = Date()
                         let calendar = Calendar.current
-
-                        // Create default start time (e.g., 9 AM)
+                        let now = Date()
                         var startComponents = calendar.dateComponents([.year, .month, .day], from: now)
                         startComponents.hour = 9
                         startComponents.minute = 0
-
-                        // Create default end time (e.g., 5 PM)
                         var endComponents = calendar.dateComponents([.year, .month, .day], from: now)
                         endComponents.hour = 17
                         endComponents.minute = 0
@@ -117,8 +148,7 @@ struct NoGoSettingsTab: View {
                             settings.noGoTimes.append(NoGoTime(
                                 startTime: startTime,
                                 endTime: endTime,
-                                name: "Work Hours",
-                                isRecurring: true
+                                name: "Work Hours"
                             ))
                         }
                     }
@@ -127,124 +157,49 @@ struct NoGoSettingsTab: View {
                     Spacer()
 
                     Button("Clear All") {
-                        settings.noGoTimes.removeAll { $0.isRecurring }
+                        settings.noGoTimes.removeAll()
                     }
-                    .disabled(!settings.noGoEnabled || settings.noGoTimes.filter({ $0.isRecurring }).isEmpty)
+                    .disabled(!settings.noGoEnabled || settings.noGoTimes.isEmpty)
                 }
             } header: {
-                Text("Daily No-Go Times")
+                Text("No-Go Times")
             } footer: {
-                Text("Automatic activations will not trigger during these periods every day.")
-                    .font(.caption)
-            }
-
-            // Day-specific no-go times (specific day of week)
-            Section {
-                ForEach($settings.noGoTimes.filter { !$0.wrappedValue.isRecurring && $0.wrappedValue.dayOfWeek != nil }) { $noGoTime in
-                    NoGoTimeRow(noGoTime: $noGoTime, onDelete: {
-                        settings.deleteNoGoTime(id: noGoTime.id)
-                    })
-                }
-
-                HStack {
-                    Button("Add Day-Specific No-Go Time") {
-                        let now = Date()
-                        let calendar = Calendar.current
-                        let currentWeekday = calendar.component(.weekday, from: now)
-
-                        // Create default start time (9 AM)
-                        var startComponents = calendar.dateComponents([.year, .month, .day], from: now)
-                        startComponents.hour = 9
-                        startComponents.minute = 0
-
-                        // Create default end time (5 PM)
-                        var endComponents = calendar.dateComponents([.year, .month, .day], from: now)
-                        endComponents.hour = 17
-                        endComponents.minute = 0
-
-                        if let startTime = calendar.date(from: startComponents),
-                           let endTime = calendar.date(from: endComponents) {
-                            settings.noGoTimes.append(NoGoTime(
-                                startTime: startTime,
-                                endTime: endTime,
-                                name: "Work Hours",
-                                isRecurring: false,
-                                dayOfWeek: currentWeekday
-                            ))
-                        }
-                    }
-                    .disabled(!settings.noGoEnabled)
-
-                    Spacer()
-
-                    Button("Clear All Day-Specific") {
-                        settings.noGoTimes.removeAll { !$0.isRecurring && $0.dayOfWeek != nil }
-                    }
-                    .disabled(!settings.noGoEnabled || settings.noGoTimes.filter({ !$0.isRecurring && $0.dayOfWeek != nil }).isEmpty)
-                }
-            } header: {
-                Text("Day-Specific No-Go Times")
-            } footer: {
-                Text("These times only apply on the selected day of the week.")
+                Text("Activations will not trigger during these time periods on selected days.")
                     .font(.caption)
             }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
     }
+
 }
 
-struct NoGoTimeRow: View {
+struct NoGoTimeCustomizeView: View {
     @Binding var noGoTime: NoGoTime
-    let onDelete: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            TextField("Label:", text: $noGoTime.name)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 80, maxWidth: 200)
-                .multilineTextAlignment(.leading)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Customize No-Go Time")
+                .font(.headline)
 
-            Spacer()
-
-            // Show day picker only for day-specific times (not today-only)
-            if !noGoTime.isRecurring && noGoTime.dayOfWeek != nil {
-                let dayOfWeek = Binding(
-                    get: { noGoTime.dayOfWeek ?? 1 },
-                    set: { noGoTime.dayOfWeek = $0 }
-                )
-                Picker("Day", selection: dayOfWeek) {
-                    Text("Sun").tag(1)
-                    Text("Mon").tag(2)
-                    Text("Tue").tag(3)
-                    Text("Wed").tag(4)
-                    Text("Thu").tag(5)
-                    Text("Fri").tag(6)
-                    Text("Sat").tag(7)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 280)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Name")
+                TextField("Name", text: $noGoTime.name)
+                    .textFieldStyle(.roundedBorder)
             }
 
-            Text("From")
-                .foregroundStyle(.secondary)
-                .font(.caption)
+            Divider()
 
-            DatePicker("", selection: $noGoTime.startTime, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-
-            Text("to")
-                .foregroundStyle(.secondary)
-                .font(.caption)
-
-            DatePicker("", selection: $noGoTime.endTime, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .foregroundColor(.red)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Repeat")
+                DayPicker(selectedDays: $noGoTime.repeatDays)
+                Text(formatRepeatDays(noGoTime.repeatDays))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            .buttonStyle(.plain)
         }
+        .padding()
+        .frame(width: 280)
     }
 }
+

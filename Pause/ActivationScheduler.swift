@@ -307,34 +307,30 @@ class ActivationScheduler: ObservableObject {
     }
 
     private func createDailyTimer(for scheduledTime: ScheduledTime) -> (Timer, Date)? {
+        // Skip disabled scheduled times
+        guard scheduledTime.isEnabled else {
+            print("Skipping disabled timer for '\(scheduledTime.name)'")
+            return nil
+        }
+
         let calendar = Calendar.current
         let now = Date()
 
         let scheduledDate: Date
 
         if scheduledTime.isRecurring {
-            // Daily recurring timer - schedule for today or tomorrow
+            // Get the target time
             let components = calendar.dateComponents([.hour, .minute], from: scheduledTime.date)
-
             guard let hour = components.hour, let minute = components.minute else {
                 return nil
             }
 
-            var todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
-            todayComponents.hour = hour
-            todayComponents.minute = minute
-            todayComponents.second = 0
-
-            guard var date = calendar.date(from: todayComponents) else {
+            // Find next valid date based on repeatDays
+            guard let nextDate = findNextValidDate(hour: hour, minute: minute, repeatDays: scheduledTime.repeatDays, from: now) else {
+                print("No valid day found for '\(scheduledTime.name)' - repeatDays: \(scheduledTime.repeatDays)")
                 return nil
             }
-
-            // If the time has already passed today, schedule for tomorrow
-            if date < now {
-                date = calendar.date(byAdding: .day, value: 1, to: date) ?? date
-            }
-
-            scheduledDate = date
+            scheduledDate = nextDate
         } else {
             // One-time timer (e.g., snooze) - use absolute date
             scheduledDate = scheduledTime.date
@@ -347,11 +343,11 @@ class ActivationScheduler: ObservableObject {
         }
 
         let timeInterval = scheduledDate.timeIntervalSinceNow
-
-        print("Scheduling \(scheduledTime.isRecurring ? "recurring" : "one-time") timer for '\(scheduledTime.name)' - fires in \(Int(timeInterval/60)) minutes")
+        let repeatInfo = scheduledTime.repeatDays.isEmpty ? "one-shot" : "repeats \(scheduledTime.repeatDays.sorted())"
+        print("Scheduling timer for '\(scheduledTime.name)' (\(repeatInfo)) - fires in \(Int(timeInterval/60)) minutes")
 
         let timer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
-            print("Scheduled timer fired")
+            print("Scheduled timer fired for '\(scheduledTime.name)'")
 
             // Skip if a session is already active
             if AppState.shared.isPauseMode {
@@ -359,18 +355,24 @@ class ActivationScheduler: ObservableObject {
             } else if Settings.shared.isInNoGoTime() {
                 print("Skipping activation - in no-go time")
             } else {
-                print("Triggering pause mode with text: \(scheduledTime.name), locked: \(String(describing: scheduledTime.isLocked)), duration: \(String(describing: scheduledTime.customDuration))")
                 AppState.shared.triggerPauseMode(displayText: scheduledTime.name, isLocked: scheduledTime.isLocked, customDuration: scheduledTime.customDuration)
             }
 
             if scheduledTime.isRecurring {
-                // Reschedule for tomorrow and update next scheduled activation
-                if let (newTimer, newFireDate) = self?.createDailyTimer(for: scheduledTime) {
-                    self?.scheduledTimers.append(newTimer)
-                    self?.updateNextScheduledActivation()
+                if scheduledTime.repeatDays.isEmpty {
+                    // One-shot: disable after firing (keep in list but turn off)
+                    if let index = Settings.shared.scheduledTimes.firstIndex(where: { $0.id == scheduledTime.id }) {
+                        Settings.shared.scheduledTimes[index].isEnabled = false
+                    }
+                } else {
+                    // Has repeat days: reschedule for next valid day
+                    if let (newTimer, _) = self?.createDailyTimer(for: scheduledTime) {
+                        self?.scheduledTimers.append(newTimer)
+                    }
                 }
+                self?.updateNextScheduledActivation()
             } else {
-                // One-time timer - remove from scheduled times after firing
+                // Snooze (absolute one-time) - remove from list
                 Settings.shared.scheduledTimes.removeAll { $0.id == scheduledTime.id }
                 self?.updateNextScheduledActivation()
             }
@@ -379,9 +381,40 @@ class ActivationScheduler: ObservableObject {
         return (timer, scheduledDate)
     }
 
+    // Find next date that matches repeatDays (1=Sunday...7=Saturday)
+    private func findNextValidDate(hour: Int, minute: Int, repeatDays: Set<Int>, from now: Date) -> Date? {
+        let calendar = Calendar.current
+
+        // If repeatDays is empty, treat as "today or tomorrow" (one-shot)
+        let daysToCheck = repeatDays.isEmpty ? Set(1...7) : repeatDays
+
+        // Check up to 7 days ahead
+        for dayOffset in 0..<7 {
+            guard let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+
+            // Get weekday (1=Sunday...7=Saturday)
+            let weekday = calendar.component(.weekday, from: checkDate)
+
+            if daysToCheck.contains(weekday) {
+                // Build the date with target hour/minute
+                var dateComponents = calendar.dateComponents([.year, .month, .day], from: checkDate)
+                dateComponents.hour = hour
+                dateComponents.minute = minute
+                dateComponents.second = 0
+
+                guard let candidateDate = calendar.date(from: dateComponents) else { continue }
+
+                // If same day but time has passed, skip
+                if candidateDate > now {
+                    return candidateDate
+                }
+            }
+        }
+
+        return nil
+    }
+
     private func updateNextScheduledActivation() {
-        // This would be called after a scheduled timer fires to update the next earliest time
-        // For now, we can just recalculate by looking at all scheduled times again
         let scheduledTimes = Settings.shared.scheduledTimes
         let calendar = Calendar.current
         let now = Date()
@@ -389,26 +422,25 @@ class ActivationScheduler: ObservableObject {
         var earliestDate: Date?
 
         for scheduledTime in scheduledTimes {
-            let components = calendar.dateComponents([.hour, .minute], from: scheduledTime.date)
-            guard let hour = components.hour, let minute = components.minute else { continue }
+            // Skip disabled times
+            guard scheduledTime.isEnabled else { continue }
 
-            var todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
-            todayComponents.hour = hour
-            todayComponents.minute = minute
-            todayComponents.second = 0
+            if scheduledTime.isRecurring {
+                let components = calendar.dateComponents([.hour, .minute], from: scheduledTime.date)
+                guard let hour = components.hour, let minute = components.minute else { continue }
 
-            guard var scheduledDate = calendar.date(from: todayComponents) else { continue }
-
-            if scheduledDate < now {
-                scheduledDate = calendar.date(byAdding: .day, value: 1, to: scheduledDate) ?? scheduledDate
-            }
-
-            if let earliest = earliestDate {
-                if scheduledDate < earliest {
-                    earliestDate = scheduledDate
+                if let nextDate = findNextValidDate(hour: hour, minute: minute, repeatDays: scheduledTime.repeatDays, from: now) {
+                    if earliestDate == nil || nextDate < earliestDate! {
+                        earliestDate = nextDate
+                    }
                 }
             } else {
-                earliestDate = scheduledDate
+                // One-time (snooze) - use absolute date
+                if scheduledTime.date > now {
+                    if earliestDate == nil || scheduledTime.date < earliestDate! {
+                        earliestDate = scheduledTime.date
+                    }
+                }
             }
         }
 
