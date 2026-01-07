@@ -38,6 +38,24 @@ const handleWaitlist = async () => {
 
   isSubmitting.value = true
 
+  const sendWelcomeEmail = async () => {
+    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL
+    if (scriptUrl) {
+      try {
+        await fetch(scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: JSON.stringify({ email: email.value.trim().toLowerCase() }),
+        })
+      } catch (err) {
+        console.error('Email error:', err)
+      }
+    }
+  }
+
   try {
     const { error } = await supabase
       .from('waitlist')
@@ -45,7 +63,8 @@ const handleWaitlist = async () => {
 
     if (error) {
       if (error.code === '23505') {
-        // Duplicate email - still allow download
+        // Duplicate email - still allow download and send email
+        await sendWelcomeEmail()
         startDownload()
         isEmailSubmitted.value = true
         isSubmitting.value = false
@@ -57,6 +76,9 @@ const handleWaitlist = async () => {
         return
       }
     }
+
+    // New email - send welcome email
+    await sendWelcomeEmail()
 
     // Start download
     startDownload()
@@ -118,7 +140,11 @@ const goHome = () => {
 
         <p v-if="emailError" class="error-message">{{ emailError }}</p>
 
-        <p class="privacy-note">We'll only use your email for occasional updates about Pause.</p>
+        <p class="privacy-note">
+          I will send you one email with how to get started in terms of settings (which is genuinely
+          useful, the settings are pretty confusing). I don't plan to send more emails unless it
+          breaks in a catastrophic way.
+        </p>
       </div>
 
       <div v-else class="success-section">
@@ -166,7 +192,14 @@ const goHome = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgb(151, 187, 101), rgb(198, 225, 116), rgb(215, 225, 199), rgb(198, 225, 116), rgb(151, 187, 101));
+  background: linear-gradient(
+    135deg,
+    rgb(151, 187, 101),
+    rgb(198, 225, 116),
+    rgb(215, 225, 199),
+    rgb(198, 225, 116),
+    rgb(151, 187, 101)
+  );
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
   color: white;
@@ -339,7 +372,7 @@ const goHome = () => {
 }
 
 .info-list li::before {
-  content: "•";
+  content: '•';
   position: absolute;
   left: 0;
   font-weight: bold;

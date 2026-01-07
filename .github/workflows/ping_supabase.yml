@@ -1,0 +1,21 @@
+name: Ping Supabase
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,4' # 9:00 AM every Monday and Thursday
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          npm install @supabase/supabase-js
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+          supabase.from('waitlist').select('id').limit(1).then(console.log).catch(console.error);
+          "
