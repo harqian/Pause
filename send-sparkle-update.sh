@@ -1,0 +1,1 @@
+/Users/hq/Library/Developer/Xcode/DerivedData/Pause-gsvhwwpdjbibltenflbkxavydxxp/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update ./website/public/Pause.zip
