@@ -61,6 +61,33 @@ class MenuBarManager: ObservableObject {
 
         menu.addItem(NSMenuItem.separator())
 
+        // Quick No-Go menu items
+        let noGo15Item = NSMenuItem(
+            title: "No-Go for 15 minutes",
+            action: #selector(addNoGo15),
+            keyEquivalent: ""
+        )
+        noGo15Item.target = self
+        menu.addItem(noGo15Item)
+
+        let noGo30Item = NSMenuItem(
+            title: "No-Go for 30 minutes",
+            action: #selector(addNoGo30),
+            keyEquivalent: ""
+        )
+        noGo30Item.target = self
+        menu.addItem(noGo30Item)
+
+        let noGo1hItem = NSMenuItem(
+            title: "No-Go for 1 hour",
+            action: #selector(addNoGo1h),
+            keyEquivalent: ""
+        )
+        noGo1hItem.target = self
+        menu.addItem(noGo1hItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         // New Window menu item
         let newWindowItem = NSMenuItem(
             title: "New Window",
@@ -145,6 +172,32 @@ class MenuBarManager: ObservableObject {
 
     @objc private func startSession() {
         AppState.shared.triggerPauseMode()
+    }
+
+    @objc private func addNoGo15() {
+        addQuickNoGo(minutes: 15)
+    }
+
+    @objc private func addNoGo30() {
+        addQuickNoGo(minutes: 30)
+    }
+
+    @objc private func addNoGo1h() {
+        addQuickNoGo(minutes: 60)
+    }
+
+    private func addQuickNoGo(minutes: Int) {
+        let now = Date()
+        let endTime = now.addingTimeInterval(TimeInterval(minutes * 60))
+        let noGoTime = NoGoTime(
+            startTime: now,
+            endTime: endTime,
+            name: "Quick \(minutes)m",
+            repeatDays: [],  // One-shot
+            isEnabled: true
+        )
+        Settings.shared.noGoTimes.append(noGoTime)
+        Settings.shared.noGoEnabled = true
     }
 
     @objc private func newWindow() {
