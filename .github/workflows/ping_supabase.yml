@@ -16,6 +16,11 @@ jobs:
           npm install @supabase/supabase-js
           node -e "
           const { createClient } = require('@supabase/supabase-js');
-          const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-          supabase.from('waitlist').select('id').limit(1).then(console.log).catch(console.error);
+          (async () => {
+            const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+            const { data, error } = await supabase.from('waitlist').select('id').limit(1);
+            if (error) { console.error(error); process.exit(1); }
+            console.log('Ping successful:', data);
+            process.exit(0);
+          })().catch(e => { console.error(e); process.exit(1); });
           "
