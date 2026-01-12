@@ -7,6 +7,7 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
       - name: Ping Supabase
         env:
