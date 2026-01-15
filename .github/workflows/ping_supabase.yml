@@ -2,12 +2,11 @@ name: Ping Supabase
 
 on:
   schedule:
-    - cron: '0 9 * * 1,4' # 9:00 AM every Monday and Thursday
+    - cron: '0 9 * * *' # 9:00 AM UTC daily
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-    environment: github-pages
     steps:
       - name: Ping Supabase
         env:
