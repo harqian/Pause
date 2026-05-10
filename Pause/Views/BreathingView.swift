@@ -114,9 +114,9 @@ struct BreathingView: View {
     }
 
     private func calculateBreathingScale(date: Date) -> Double {
-        // Breathing cycle: 2s inhale + 3s exhale = 5s total
-        let inhaleDuration = 2.0
-        let exhaleDuration = 3.0
+        // breathing cycle: 3s inhale + 5s exhale = 8s total (matches real deep breathing)
+        let inhaleDuration = 3.0
+        let exhaleDuration = 5.0
         let totalCycleDuration = inhaleDuration + exhaleDuration
 
         // Calculate position in the breathing cycle
@@ -124,13 +124,13 @@ struct BreathingView: View {
 
         let scale: Double
         if timeInCycle < inhaleDuration {
-            // Inhale phase (0s to 2s): grow from 0.8 to 1.2
+            // Inhale phase: grow from 0.8 to 1.2
             let progress = timeInCycle / inhaleDuration
             // Use ease-in-out for smooth breathing
             let eased = (1.0 - cos(progress * .pi)) / 2.0
             scale = 0.8 + (eased * 0.4)
         } else {
-            // Exhale phase (2s to 5s): shrink from 1.2 to 0.8
+            // Exhale phase: shrink from 1.2 to 0.8
             let progress = (timeInCycle - inhaleDuration) / exhaleDuration
             // Use ease-in-out for smooth breathing
             let eased = (1.0 - cos(progress * .pi)) / 2.0

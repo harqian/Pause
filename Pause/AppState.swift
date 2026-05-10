@@ -192,15 +192,8 @@ class AppState: NSObject, ObservableObject, AVAudioPlayerDelegate {
             print("Session ended early (not counted)")
         }
 
-        // Resume or recalculate timers after session ends
-        if Settings.shared.recalculateOnActivation {
-            // Recalculate timers from scratch (creates new timers)
-            print("Recalculating timers after session ended")
-            ActivationScheduler.shared.recalculateTimers()
-        } else {
-            // Resume paused timers with their remaining time
-            ActivationScheduler.shared.resumeTimers()
-        }
+        // recalculate timers from scratch after session ends
+        ActivationScheduler.shared.recalculateTimers()
 
         // Stop the timer
         timer?.invalidate()

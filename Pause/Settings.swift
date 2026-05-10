@@ -5,6 +5,7 @@
 //  Created by Harrison Qian on 10/22/25.
 //
 
+import AppKit
 import Carbon.HIToolbox
 import Foundation
 import ServiceManagement
@@ -169,68 +170,6 @@ class Settings: ObservableObject {
     }
   }
 
-  // Doom scroll detection settings
-  @Published var doomScrollEnabled: Bool {
-    didSet {
-      UserDefaults.standard.set(doomScrollEnabled, forKey: "doomScrollEnabled")
-    }
-  }
-
-  @Published var doomScrollVelocityThreshold: Int {
-    didSet {
-      UserDefaults.standard.set(doomScrollVelocityThreshold, forKey: "doomScrollVelocityThreshold")
-    }
-  }
-
-  @Published var doomScrollDirectionalityThreshold: Double {
-    didSet {
-      UserDefaults.standard.set(
-        doomScrollDirectionalityThreshold, forKey: "doomScrollDirectionalityThreshold")
-    }
-  }
-
-  @Published var doomScrollPauseThreshold: Double {
-    didSet {
-      UserDefaults.standard.set(doomScrollPauseThreshold, forKey: "doomScrollPauseThreshold")
-    }
-  }
-
-  @Published var doomScrollWindowDuration: Int {
-    didSet {
-      UserDefaults.standard.set(doomScrollWindowDuration, forKey: "doomScrollWindowDuration")
-    }
-  }
-
-  @Published var doomScrollMessage: String? {
-    didSet {
-      if let value = doomScrollMessage {
-        UserDefaults.standard.set(value, forKey: "doomScrollMessage")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "doomScrollMessage")
-      }
-    }
-  }
-
-  @Published var doomScrollIsLocked: Bool? {
-    didSet {
-      if let value = doomScrollIsLocked {
-        UserDefaults.standard.set(value, forKey: "doomScrollIsLocked")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "doomScrollIsLocked")
-      }
-    }
-  }
-
-  @Published var doomScrollCustomDuration: Int? {
-    didSet {
-      if let value = doomScrollCustomDuration {
-        UserDefaults.standard.set(value, forKey: "doomScrollCustomDuration")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "doomScrollCustomDuration")
-      }
-    }
-  }
-
   @Published var pauseDuration: Int {
     didSet {
       UserDefaults.standard.set(pauseDuration, forKey: "pauseDuration")
@@ -295,6 +234,13 @@ class Settings: ObservableObject {
     didSet {
       UserDefaults.standard.set(launchAtLogin, forKey: "launchAtLogin")
       updateLaunchAtLogin()
+    }
+  }
+
+  @Published var hideFromDock: Bool {
+    didSet {
+      UserDefaults.standard.set(hideFromDock, forKey: "hideFromDock")
+      NSApp.setActivationPolicy(hideFromDock ? .accessory : .regular)
     }
   }
 
@@ -381,57 +327,6 @@ class Settings: ObservableObject {
     }
   }
 
-  @Published var randomEnabled: Bool {
-    didSet {
-      UserDefaults.standard.set(randomEnabled, forKey: "randomEnabled")
-      ActivationScheduler.shared.updateRandomTimer()
-    }
-  }
-
-  @Published var randomMinInterval: Int {
-    didSet {
-      UserDefaults.standard.set(randomMinInterval, forKey: "randomMinInterval")
-      ActivationScheduler.shared.updateRandomTimer()
-    }
-  }
-
-  @Published var randomMaxInterval: Int {
-    didSet {
-      UserDefaults.standard.set(randomMaxInterval, forKey: "randomMaxInterval")
-      ActivationScheduler.shared.updateRandomTimer()
-    }
-  }
-
-  @Published var randomIsLocked: Bool? {
-    didSet {
-      if let value = randomIsLocked {
-        UserDefaults.standard.set(value, forKey: "randomIsLocked")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "randomIsLocked")
-      }
-    }
-  }
-
-  @Published var randomCustomDuration: Int? {
-    didSet {
-      if let value = randomCustomDuration {
-        UserDefaults.standard.set(value, forKey: "randomCustomDuration")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "randomCustomDuration")
-      }
-    }
-  }
-
-  @Published var randomMessage: String? {
-    didSet {
-      if let value = randomMessage {
-        UserDefaults.standard.set(value, forKey: "randomMessage")
-      } else {
-        UserDefaults.standard.removeObject(forKey: "randomMessage")
-      }
-    }
-  }
-
   @Published var scheduledEnabled: Bool {
     didSet {
       UserDefaults.standard.set(scheduledEnabled, forKey: "scheduledEnabled")
@@ -504,12 +399,6 @@ class Settings: ObservableObject {
   func clearAllScheduledTimes() {
     saveUndoState()
     scheduledTimes.removeAll()
-  }
-
-  @Published var recalculateOnActivation: Bool {
-    didSet {
-      UserDefaults.standard.set(recalculateOnActivation, forKey: "recalculateOnActivation")
-    }
   }
 
   // No-Go times (times when activations should not trigger)
@@ -585,22 +474,6 @@ class Settings: ObservableObject {
       UserDefaults.standard.object(forKey: "detectionEnabled") as? Bool ?? true
     self.inputDelayBuffer = UserDefaults.standard.object(forKey: "inputDelayBuffer") as? Int ?? 2
 
-    // Load doom scroll detection settings
-    self.doomScrollEnabled =
-      UserDefaults.standard.object(forKey: "doomScrollEnabled") as? Bool ?? false
-    self.doomScrollVelocityThreshold =
-      UserDefaults.standard.object(forKey: "doomScrollVelocityThreshold") as? Int ?? 3000  // events per minute (40 * 75)
-    self.doomScrollDirectionalityThreshold =
-      UserDefaults.standard.object(forKey: "doomScrollDirectionalityThreshold") as? Double ?? 0.85  // 85% forward
-    self.doomScrollPauseThreshold =
-      UserDefaults.standard.object(forKey: "doomScrollPauseThreshold") as? Double ?? 1.5  // 1.5 seconds median gap
-    self.doomScrollWindowDuration =
-      UserDefaults.standard.object(forKey: "doomScrollWindowDuration") as? Int ?? 3  // 3 minutes rolling window
-    self.doomScrollMessage = UserDefaults.standard.object(forKey: "doomScrollMessage") as? String
-    self.doomScrollIsLocked = UserDefaults.standard.object(forKey: "doomScrollIsLocked") as? Bool
-    self.doomScrollCustomDuration =
-      UserDefaults.standard.object(forKey: "doomScrollCustomDuration") as? Int
-
     self.pauseDuration = UserDefaults.standard.object(forKey: "pauseDuration") as? Int ?? 60
     self.pauseVariance = UserDefaults.standard.object(forKey: "pauseVariance") as? Int ?? 0
     self.soundEnabled = UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true
@@ -618,6 +491,7 @@ class Settings: ObservableObject {
     // Launch at login - default to true for first launch
     self.launchAtLogin = UserDefaults.standard.object(forKey: "launchAtLogin") as? Bool ?? true
 
+    self.hideFromDock = UserDefaults.standard.object(forKey: "hideFromDock") as? Bool ?? false
     self.showInMenuBar = UserDefaults.standard.object(forKey: "showInMenuBar") as? Bool ?? true
     self.menuBarShowTimer =
       UserDefaults.standard.object(forKey: "menuBarShowTimer") as? Bool ?? true
@@ -636,14 +510,6 @@ class Settings: ObservableObject {
     self.repeatedCustomDuration =
       UserDefaults.standard.object(forKey: "repeatedCustomDuration") as? Int
     self.repeatedMessage = UserDefaults.standard.object(forKey: "repeatedMessage") as? String
-
-    self.randomEnabled = UserDefaults.standard.object(forKey: "randomEnabled") as? Bool ?? false
-    self.randomMinInterval = UserDefaults.standard.object(forKey: "randomMinInterval") as? Int ?? 30  // Default 30 minutes
-    self.randomMaxInterval =
-      UserDefaults.standard.object(forKey: "randomMaxInterval") as? Int ?? 120  // Default 120 minutes
-    self.randomIsLocked = UserDefaults.standard.object(forKey: "randomIsLocked") as? Bool
-    self.randomCustomDuration = UserDefaults.standard.object(forKey: "randomCustomDuration") as? Int
-    self.randomMessage = UserDefaults.standard.object(forKey: "randomMessage") as? String
 
     self.scheduledEnabled =
       UserDefaults.standard.object(forKey: "scheduledEnabled") as? Bool ?? false
@@ -670,9 +536,6 @@ class Settings: ObservableObject {
     } else {
       self.monitoredApps = []
     }
-
-    self.recalculateOnActivation =
-      UserDefaults.standard.object(forKey: "recalculateOnActivation") as? Bool ?? true
 
     // Load no-go times
     self.noGoEnabled = UserDefaults.standard.object(forKey: "noGoEnabled") as? Bool ?? false
@@ -720,10 +583,16 @@ class Settings: ObservableObject {
       UserDefaults.standard.object(forKey: "snoozeHotkeyKeyCode") as? UInt32 ?? defaultSnoozeKeyCode
 
     // Load UI state
-    self.selectedTab = UserDefaults.standard.object(forKey: "selectedTab") as? Int ?? 0
+    let savedTab = UserDefaults.standard.object(forKey: "selectedTab") as? Int ?? 0
+    self.selectedTab = min(savedTab, 3) // clamp to 0-3 (4 tabs now)
 
     // Apply launch at login setting on init
     updateLaunchAtLogin()
+
+    // Apply dock visibility on init
+    if hideFromDock {
+      NSApp.setActivationPolicy(.accessory)
+    }
   }
 
   func getActualPauseDuration() -> Int {
@@ -979,14 +848,6 @@ class Settings: ObservableObject {
     detectionEnabled = true
     inputDelayBuffer = 60
 
-    // Doom scroll detection settings
-    doomScrollEnabled = false
-    doomScrollVelocityThreshold = 3000
-    doomScrollDirectionalityThreshold = 0.85
-    doomScrollPauseThreshold = 1.5
-    doomScrollWindowDuration = 3
-    doomScrollMessage = "Take a Break from Scrolling"
-
     // Session settings
     pauseDuration = 60
     pauseVariance = 0
@@ -1013,15 +874,10 @@ class Settings: ObservableObject {
     // Activation settings
     repeatedEnabled = false
     repeatedInterval = 60
-    randomEnabled = false
-    randomMinInterval = 30
-    randomMaxInterval = 120
     scheduledEnabled = false
     scheduledTimes = []
     appLaunchEnabled = false
     monitoredApps = []
-    recalculateOnActivation = true
-
     // No-go settings
     noGoEnabled = false
     noGoTimes = []

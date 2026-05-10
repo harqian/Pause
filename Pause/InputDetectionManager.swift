@@ -138,24 +138,6 @@ class InputDetectionManager: ObservableObject {
             }
 
 
-            // Track doom scrolling events
-            if type == .scrollWheel {
-                let deltaY = event.getDoubleValueField(.scrollWheelEventDeltaAxis1)
-                if eventCount <= 3 {
-                    print("🖱️ InputDetectionManager: Scroll event detected (deltaY: \(deltaY)), forwarding to DoomScrollDetector")
-                }
-                DoomScrollDetector.shared.recordScrollEvent(deltaY: deltaY)
-            } else if type == .keyDown {
-                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-                // Only track arrow keys for doom scroll detection
-                if [123, 124, 125, 126].contains(keyCode) {
-                    if eventCount <= 3 {
-                        print("⌨️ InputDetectionManager: Arrow key detected (keyCode: \(keyCode)), forwarding to DoomScrollDetector")
-                    }
-                    DoomScrollDetector.shared.recordKeyEvent(keyCode: keyCode)
-                }
-            }
-
             guard self.settings.detectionEnabled else {
                 if eventCount <= 3 {
                     print("⚠️ InputDetectionManager: Detection is DISABLED in settings")
