@@ -13,14 +13,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          npm install @supabase/supabase-js
-          node -e "
-          const { createClient } = require('@supabase/supabase-js');
-          (async () => {
-            const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-            const { data, error } = await supabase.from('waitlist').select('id').limit(1);
-            if (error) { console.error(error); process.exit(1); }
-            console.log('Ping successful:', data);
-            process.exit(0);
-          })().catch(e => { console.error(e); process.exit(1); });
-          "
+          response=$(curl -sf \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/waitlist?select=id&limit=1")
+          echo "Ping successful: $response"
