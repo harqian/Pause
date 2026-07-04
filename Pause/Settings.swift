@@ -589,9 +589,11 @@ class Settings: ObservableObject {
     // Apply launch at login setting on init
     updateLaunchAtLogin()
 
-    // Apply dock visibility on init
+    // Apply dock visibility on init. Use NSApplication.shared (not NSApp) because
+    // this runs during PauseApp.init() before AppKit sets the global NSApp, which is
+    // an implicitly-unwrapped NSApplication! and would be nil here.
     if hideFromDock {
-      NSApp.setActivationPolicy(.accessory)
+      NSApplication.shared.setActivationPolicy(.accessory)
     }
   }
 
